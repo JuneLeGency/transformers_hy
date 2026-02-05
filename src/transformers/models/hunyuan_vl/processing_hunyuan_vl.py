@@ -32,7 +32,7 @@ class HunYuanVLProcessor(ProcessorMixin):
         self.placeholder_token = self.tokenizer.convert_ids_to_tokens(self.tokenizer.vocab_size - 1)
         self.pad_id = 120002 #self.tokenizer.pad_token_id
 
-        super().__init__(image_processor, tokenizer, video_processor, chat_template=chat_template)
+        super().__init__(image_processor, tokenizer, chat_template=chat_template)
 
     def __call__(
         self,
