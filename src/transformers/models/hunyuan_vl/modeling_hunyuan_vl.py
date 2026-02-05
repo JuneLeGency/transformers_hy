@@ -276,7 +276,7 @@ class HunYuanVisionAttention(nn.Module):
         value_states = self.v_proj(hidden_states).view(hidden_shape).transpose(1, 2)
 
         attention_interface: Callable = eager_attention_forward
-        if self.config._attn_implementation != "eager":
+        if self.config._attn_implementation not in (None, "eager"):
             attention_interface = ALL_ATTENTION_FUNCTIONS[self.config._attn_implementation]
 
         attn_output, attn_weights = attention_interface(
@@ -618,7 +618,7 @@ class HunYuanVLAttention(nn.Module):
             key_states, value_states = past_key_values.update(key_states, value_states, self.layer_idx, cache_kwargs)
 
         attention_interface: Callable = eager_attention_forward
-        if self.config._attn_implementation != "eager":
+        if self.config._attn_implementation not in (None, "eager"):
             attention_interface = ALL_ATTENTION_FUNCTIONS[self.config._attn_implementation]
 
         attn_output, attn_weights = attention_interface(
@@ -882,6 +882,53 @@ class HunYuanVLForConditionalGeneration(HunYuanVLPreTrainedModel, GenerationMixi
         self.config = config
         self.post_init()
 
+    @classmethod
+    def from_pretrained(cls, pretrained_model_name_or_path, *model_args, **kwargs):
+        """
+        Custom from_pretrained that bypasses meta device initialization
+        which causes weight corruption for HunyuanVL models.
+        """
+        import os
+        from safetensors.torch import load_file
+        from transformers import AutoConfig
+
+        # Extract relevant kwargs
+        torch_dtype = kwargs.pop("torch_dtype", None)
+        device_map = kwargs.pop("device_map", None)
+        trust_remote_code = kwargs.pop("trust_remote_code", False)
+
+        # Load config
+        config = AutoConfig.from_pretrained(
+            pretrained_model_name_or_path,
+            trust_remote_code=trust_remote_code,
+            **kwargs
+        )
+
+        # Create model WITHOUT meta device initialization
+        with torch.device("cpu"):
+            model = cls._from_config(config, torch_dtype=torch_dtype)
+
+        # Load state dict from safetensors files
+        state_dict = {}
+        model_path = pretrained_model_name_or_path
+        for f in os.listdir(model_path):
+            if f.endswith(".safetensors"):
+                sd = load_file(os.path.join(model_path, f))
+                state_dict.update(sd)
+
+        # Load state dict
+        model.load_state_dict(state_dict, strict=False)
+
+        # Tie weights
+        model.tie_weights()
+
+        # Move to device if device_map is specified
+        if device_map == "auto" or device_map is not None:
+            model = model.to("cuda" if torch.cuda.is_available() else "cpu")
+
+        model.eval()
+        return model
+
     def set_decoder(self, decoder):
         self.model = decoder
 
@@ -970,18 +1017,6 @@ class HunYuanVLForConditionalGeneration(HunYuanVLPreTrainedModel, GenerationMixi
             hidden_states=outputs.hidden_states,
             attentions=outputs.attentions,
         )
-
-    # def prepare_inputs_for_generation(
-    #     self, input_ids, past_key_values=None, attention_mask=None, inputs_embeds=None, **kwargs
-    # ):
-    #     inputs = super().prepare_inputs_for_generation(
-    #         input_ids,
-    #         past_key_values=past_key_values,
-    #         attention_mask=attention_mask,
-    #         inputs_embeds=inputs_embeds,
-    #         **kwargs,
-    #     )
-    #     return inputs
 
     @torch.no_grad()
     def generate(
