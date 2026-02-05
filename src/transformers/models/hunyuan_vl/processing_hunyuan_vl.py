@@ -38,7 +38,7 @@ class HunYuanVLProcessor(ProcessorMixin):
         self,
         images: ImageInput = None,
         text: Union[TextInput, PreTokenizedInput, list[TextInput], list[PreTokenizedInput]] = None,
-        videos: VideoInput = None,
+        videos=None,
         **kwargs
     ) -> BatchFeature:
         image_inputs = videos_inputs = {}
