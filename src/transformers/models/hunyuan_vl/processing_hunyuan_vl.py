@@ -5,7 +5,7 @@ import numpy as np
 
 from ...feature_extraction_utils import BatchFeature
 from ...image_utils import ImageInput
-from ...video_utils import VideoInput
+# from ...video_utils import VideoInput
 from ...processing_utils import ProcessorMixin
 from ...tokenization_utils_base import PaddingStrategy, PreTokenizedInput, TextInput, TruncationStrategy
 from ...utils import TensorType, logging
@@ -20,7 +20,7 @@ class HunYuanVLProcessor(ProcessorMixin):
     image_processor_class = "AutoImageProcessor"
     tokenizer_class = "AutoTokenizer" # ("AutoTokenizer", None)
 
-    def __init__(self, image_processor=None, tokenizer=None, video_processor=None, chat_template=None, **kwargs):
+    def __init__(self, image_processor=None, tokenizer=None, chat_template=None, **kwargs):
         # TODO Fix the init
         self.tokenizer = tokenizer
         self.image_token_id = 120120 # self.tokenizer.image_token_id
