@@ -897,7 +897,10 @@ class HunYuanVLForConditionalGeneration(HunYuanVLPreTrainedModel, GenerationMixi
         dtype = kwargs.pop("dtype", None)
         device_map = kwargs.pop("device_map", None)
         trust_remote_code = kwargs.pop("trust_remote_code", False)
-        attn_implementation = kwargs.pop("attn_implementation", None)
+        # Accept attn_implementation but do not apply it to config.
+        # HunyuanVL works correctly with the default sdpa attention.
+        # Eager attention causes stop-token generation failures for some inputs.
+        kwargs.pop("attn_implementation", None)
 
         # dtype takes precedence over torch_dtype (torch_dtype is deprecated)
         effective_dtype = dtype or torch_dtype
@@ -908,10 +911,6 @@ class HunYuanVLForConditionalGeneration(HunYuanVLPreTrainedModel, GenerationMixi
             trust_remote_code=trust_remote_code,
             **kwargs
         )
-
-        # Apply attn_implementation to config if provided
-        if attn_implementation is not None:
-            config._attn_implementation_internal = attn_implementation
 
         # Create model WITHOUT meta device initialization
         with torch.device("cpu"):
