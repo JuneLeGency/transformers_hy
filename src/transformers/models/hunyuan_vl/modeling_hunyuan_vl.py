@@ -890,12 +890,17 @@ class HunYuanVLForConditionalGeneration(HunYuanVLPreTrainedModel, GenerationMixi
         """
         import os
         from safetensors.torch import load_file
-        from transformers import AutoConfig
+        from transformers import AutoConfig, GenerationConfig
 
         # Extract relevant kwargs
         torch_dtype = kwargs.pop("torch_dtype", None)
+        dtype = kwargs.pop("dtype", None)
         device_map = kwargs.pop("device_map", None)
         trust_remote_code = kwargs.pop("trust_remote_code", False)
+        attn_implementation = kwargs.pop("attn_implementation", None)
+
+        # dtype takes precedence over torch_dtype (torch_dtype is deprecated)
+        effective_dtype = dtype or torch_dtype
 
         # Load config
         config = AutoConfig.from_pretrained(
@@ -904,14 +909,18 @@ class HunYuanVLForConditionalGeneration(HunYuanVLPreTrainedModel, GenerationMixi
             **kwargs
         )
 
+        # Apply attn_implementation to config if provided
+        if attn_implementation is not None:
+            config._attn_implementation_internal = attn_implementation
+
         # Create model WITHOUT meta device initialization
         with torch.device("cpu"):
-            model = cls._from_config(config, torch_dtype=torch_dtype)
+            model = cls._from_config(config, torch_dtype=effective_dtype)
 
         # Load state dict from safetensors files
         state_dict = {}
         model_path = pretrained_model_name_or_path
-        for f in os.listdir(model_path):
+        for f in sorted(os.listdir(model_path)):
             if f.endswith(".safetensors"):
                 sd = load_file(os.path.join(model_path, f))
                 state_dict.update(sd)
@@ -921,6 +930,15 @@ class HunYuanVLForConditionalGeneration(HunYuanVLPreTrainedModel, GenerationMixi
 
         # Tie weights
         model.tie_weights()
+
+        # Load generation config so that eos_token_id and other generation
+        # parameters are available during generate().
+        try:
+            model.generation_config = GenerationConfig.from_pretrained(
+                pretrained_model_name_or_path,
+            )
+        except OSError:
+            pass
 
         # Move to device if device_map is specified
         if device_map == "auto" or device_map is not None:
@@ -1053,7 +1071,6 @@ class HunYuanVLForConditionalGeneration(HunYuanVLPreTrainedModel, GenerationMixi
             position_ids=position_ids,
             attention_mask=attention_mask,
             inputs_embeds=inputs_embeds,
-            # eos_token_id=self.config.eod_token_id,
             **kwargs,
         )
 
