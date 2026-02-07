@@ -940,6 +940,18 @@ class HunYuanVLForConditionalGeneration(HunYuanVLPreTrainedModel, GenerationMixi
         except OSError:
             pass
 
+        # Ensure all HunyuanVL stop tokens are in eos_token_id.
+        # The model's generation_config.json may be incomplete — some
+        # checkpoints only list a subset.  The canonical stop tokens are:
+        #   <｜hy_end▁of▁sentence｜> (120001), <｜hy_Assistant｜> (120007),
+        #   <｜hy_EOT｜> (120008).
+        _hunyuan_stop_ids = {120001, 120007, 120008}
+        eos = model.generation_config.eos_token_id
+        if eos is not None:
+            existing = set(eos) if isinstance(eos, list) else {eos}
+            merged = sorted(existing | _hunyuan_stop_ids)
+            model.generation_config.eos_token_id = merged
+
         # Move to device if device_map is specified
         if device_map == "auto" or device_map is not None:
             model = model.to("cuda" if torch.cuda.is_available() else "cpu")
