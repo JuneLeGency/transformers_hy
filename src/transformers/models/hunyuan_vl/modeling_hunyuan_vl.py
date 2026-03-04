@@ -471,6 +471,10 @@ def apply_rotary_pos_emb_xdrope(q, k, cos, sin, position_ids, xdrope_section, ou
         `tuple(torch.Tensor)`: The query and key tensors rotated using the XD Rotary Position Embedding.
     """
     x_dim = len(xdrope_section)
+    # position_ids may be 2D (batch, seq_len) when created by default in
+    # HunYuanVLModel.forward(); XDRoPE needs 3D (batch, x_dim, seq_len).
+    if position_ids.dim() == 2:
+        position_ids = position_ids.unsqueeze(1).expand(-1, x_dim, -1)
     cos = cos[position_ids, ...].permute(0, 2, 1, 3).reshape(output_size[0], output_size[2], x_dim, -1).contiguous()
     sin = sin[position_ids, ...].permute(0, 2, 1, 3).reshape(output_size[0], output_size[2], x_dim, -1).contiguous()
 
